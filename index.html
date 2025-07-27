@@ -205,7 +205,7 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="title">🎤 음성 텍스트 입력</h1>
+        <h1 class="title">🎤 음성 텍스트 입력 v6</h1>
         
         <div class="input-container">
             <textarea 
@@ -251,6 +251,9 @@
                 this.dataArray = null;
                 this.animationId = null;
                 this.transcribedText = '';
+                this.hasStarted = false;
+                this.statusUpdateTimeout = null;
+                this.stoppingRecognition = false;
 
                 this.initElements();
                 this.initSpeechRecognition();
@@ -281,9 +284,13 @@
                 this.recognition.continuous = true;
                 this.recognition.interimResults = true;
                 this.recognition.lang = 'ko-KR';
+                this.hasStarted = false;
 
                 this.recognition.onstart = () => {
-                    this.showStatus('음성 인식이 시작되었습니다.', 'info');
+                    if (!this.hasStarted) {
+                        this.showStatus('음성 인식이 시작되었습니다.', 'info');
+                        this.hasStarted = true;
+                    }
                 };
 
                 this.recognition.onresult = (event) => {
@@ -299,20 +306,36 @@
                         }
                     }
 
-                    this.transcribedText = finalTranscript;
-                    if (interimTranscript) {
-                        this.showStatus(`인식 중: ${interimTranscript}`, 'info');
+                    // 최종 결과가 있으면 누적
+                    if (finalTranscript) {
+                        this.transcribedText += finalTranscript;
+                    }
+                    
+                    // 실시간 결과 표시 (너무 자주 업데이트되지 않도록)
+                    if (interimTranscript && !this.statusUpdateTimeout) {
+                        this.statusUpdateTimeout = setTimeout(() => {
+                            this.showStatus(`인식 중: ${interimTranscript}`, 'info');
+                            this.statusUpdateTimeout = null;
+                        }, 500);
                     }
                 };
 
                 this.recognition.onerror = (event) => {
-                    this.showStatus(`음성 인식 오류: ${event.error}`, 'error');
-                    this.stopRecording();
+                    console.error('Speech recognition error:', event.error);
+                    if (event.error !== 'aborted') {
+                        this.showStatus(`음성 인식 오류: ${event.error}`, 'error');
+                        this.stopRecording();
+                    }
                 };
 
                 this.recognition.onend = () => {
-                    if (this.isRecording) {
-                        this.recognition.start();
+                    if (this.isRecording && !this.stoppingRecognition) {
+                        // 자동 재시작하되, 너무 빈번하지 않게
+                        setTimeout(() => {
+                            if (this.isRecording) {
+                                this.recognition.start();
+                            }
+                        }, 100);
                     }
                 };
             }
@@ -393,6 +416,8 @@
 
                 this.isRecording = true;
                 this.transcribedText = '';
+                this.hasStarted = false;
+                this.stoppingRecognition = false;
                 this.micButton.classList.add('recording');
                 this.micButton.textContent = '🔴';
                 this.recordingUI.classList.add('active');
@@ -401,11 +426,19 @@
                 this.startTimer();
                 
                 await this.initAudioVisualization();
-                this.recognition.start();
+                
+                try {
+                    this.recognition.start();
+                } catch (error) {
+                    console.error('Recognition start error:', error);
+                    this.showStatus('음성 인식을 시작할 수 없습니다.', 'error');
+                    this.stopRecording();
+                }
             }
 
             stopRecording() {
                 this.isRecording = false;
+                this.stoppingRecognition = true;
                 this.micButton.classList.remove('recording');
                 this.micButton.textContent = '🎤';
                 this.recordingUI.classList.remove('active');
@@ -413,7 +446,11 @@
                 this.stopTimer();
                 
                 if (this.recognition) {
-                    this.recognition.stop();
+                    try {
+                        this.recognition.stop();
+                    } catch (error) {
+                        console.error('Recognition stop error:', error);
+                    }
                 }
                 
                 if (this.audioContext) {
@@ -425,20 +462,28 @@
                     cancelAnimationFrame(this.animationId);
                 }
 
+                if (this.statusUpdateTimeout) {
+                    clearTimeout(this.statusUpdateTimeout);
+                    this.statusUpdateTimeout = null;
+                }
+
                 this.showStatus('녹음이 중지되었습니다.', 'info');
             }
 
             completeRecording() {
                 this.stopRecording();
                 
-                if (this.transcribedText) {
-                    const currentText = this.textInput.value;
-                    const newText = currentText ? currentText + ' ' + this.transcribedText : this.transcribedText;
-                    this.textInput.value = newText;
-                    this.showStatus('음성이 텍스트로 변환되어 입력되었습니다.', 'success');
-                } else {
-                    this.showStatus('변환된 텍스트가 없습니다.', 'error');
-                }
+                // 약간의 지연을 주어 마지막 음성 인식 결과를 기다림
+                setTimeout(() => {
+                    if (this.transcribedText && this.transcribedText.trim()) {
+                        const currentText = this.textInput.value;
+                        const newText = currentText ? currentText + ' ' + this.transcribedText.trim() : this.transcribedText.trim();
+                        this.textInput.value = newText;
+                        this.showStatus('음성이 텍스트로 변환되어 입력되었습니다.', 'success');
+                    } else {
+                        this.showStatus('인식된 음성이 없습니다. 다시 시도해 주세요.', 'error');
+                    }
+                }, 500);
             }
 
             startTimer() {
