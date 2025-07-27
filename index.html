@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>음성 텍스트 입력</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .input-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 15px 60px 15px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.3s ease;
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .text-input:focus {
+            border-color: #667eea;
+        }
+
+        .mic-button {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 18px;
+        }
+
+        .mic-button:hover {
+            background: #5a6fd8;
+            transform: scale(1.05);
+        }
+
+        .mic-button.recording {
+            background: #ff4757;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .recording-ui {
+            display: none;
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .recording-ui.active {
+            display: block;
+        }
+
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff4757;
+            margin-bottom: 15px;
+        }
+
+        .visualizer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 60px;
+            margin-bottom: 20px;
+        }
+
+        .bar {
+            width: 4px;
+            background: #667eea;
+            margin: 0 2px;
+            border-radius: 2px;
+            transition: height 0.1s ease;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .stop-btn {
+            background: #ff4757;
+            color: white;
+        }
+
+        .stop-btn:hover {
+            background: #ff3742;
+            transform: scale(1.05);
+        }
+
+        .complete-btn {
+            background: #2ed573;
+            color: white;
+        }
+
+        .complete-btn:hover {
+            background: #26d467;
+            transform: scale(1.05);
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .status.error {
+            background: #ffe6e6;
+            color: #d63031;
+        }
+
+        .status.success {
+            background: #e6f7f1;
+            color: #00b894;
+        }
+
+        .status.info {
+            background: #e6f2ff;
+            color: #0984e3;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .title {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🎤 음성 텍스트 입력</h1>
+        
+        <div class="input-container">
+            <textarea 
+                class="text-input" 
+                id="textInput" 
+                placeholder="여기에 텍스트를 입력하거나 마이크 버튼을 눌러 음성으로 입력하세요..."
+            ></textarea>
+            <button class="mic-button" id="micButton">
+                🎤
+            </button>
+        </div>
+
+        <div class="recording-ui" id="recordingUI">
+            <div class="timer" id="timer">0:00</div>
+            
+            <div class="visualizer" id="visualizer">
+                <!-- 음성 강도 시각화 바들 -->
+            </div>
+            
+            <div class="controls">
+                <button class="control-btn stop-btn" id="stopBtn" title="녹음 중지">
+                    ⏹️
+                </button>
+                <button class="control-btn complete-btn" id="completeBtn" title="녹음 완료">
+                    ➤
+                </button>
+            </div>
+        </div>
+
+        <div class="status" id="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        class VoiceTextApp {
+            constructor() {
+                this.recognition = null;
+                this.isRecording = false;
+                this.startTime = 0;
+                this.timerInterval = null;
+                this.audioContext = null;
+                this.analyser = null;
+                this.microphone = null;
+                this.dataArray = null;
+                this.animationId = null;
+                this.transcribedText = '';
+
+                this.initElements();
+                this.initSpeechRecognition();
+                this.bindEvents();
+                this.createVisualizer();
+            }
+
+            initElements() {
+                this.textInput = document.getElementById('textInput');
+                this.micButton = document.getElementById('micButton');
+                this.recordingUI = document.getElementById('recordingUI');
+                this.timer = document.getElementById('timer');
+                this.visualizer = document.getElementById('visualizer');
+                this.stopBtn = document.getElementById('stopBtn');
+                this.completeBtn = document.getElementById('completeBtn');
+                this.status = document.getElementById('status');
+            }
+
+            initSpeechRecognition() {
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    this.showStatus('이 브라우저는 음성 인식을 지원하지 않습니다.', 'error');
+                    return;
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognition = new SpeechRecognition();
+                
+                this.recognition.continuous = true;
+                this.recognition.interimResults = true;
+                this.recognition.lang = 'ko-KR';
+
+                this.recognition.onstart = () => {
+                    this.showStatus('음성 인식이 시작되었습니다.', 'info');
+                };
+
+                this.recognition.onresult = (event) => {
+                    let interimTranscript = '';
+                    let finalTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const transcript = event.results[i][0].transcript;
+                        if (event.results[i].isFinal) {
+                            finalTranscript += transcript;
+                        } else {
+                            interimTranscript += transcript;
+                        }
+                    }
+
+                    this.transcribedText = finalTranscript;
+                    if (interimTranscript) {
+                        this.showStatus(`인식 중: ${interimTranscript}`, 'info');
+                    }
+                };
+
+                this.recognition.onerror = (event) => {
+                    this.showStatus(`음성 인식 오류: ${event.error}`, 'error');
+                    this.stopRecording();
+                };
+
+                this.recognition.onend = () => {
+                    if (this.isRecording) {
+                        this.recognition.start();
+                    }
+                };
+            }
+
+            createVisualizer() {
+                for (let i = 0; i < 20; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'bar';
+                    bar.style.height = '5px';
+                    this.visualizer.appendChild(bar);
+                }
+            }
+
+            async initAudioVisualization() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.analyser = this.audioContext.createAnalyser();
+                    this.microphone = this.audioContext.createMediaStreamSource(stream);
+                    
+                    this.analyser.fftSize = 256;
+                    const bufferLength = this.analyser.frequencyBinCount;
+                    this.dataArray = new Uint8Array(bufferLength);
+                    
+                    this.microphone.connect(this.analyser);
+                    this.visualizeAudio();
+                } catch (error) {
+                    console.error('마이크 접근 실패:', error);
+                    this.showStatus('마이크 접근에 실패했습니다.', 'error');
+                }
+            }
+
+            visualizeAudio() {
+                if (!this.isRecording) return;
+
+                this.animationId = requestAnimationFrame(() => this.visualizeAudio());
+                
+                this.analyser.getByteFrequencyData(this.dataArray);
+                
+                const bars = this.visualizer.querySelectorAll('.bar');
+                const barCount = bars.length;
+                const dataPerBar = Math.floor(this.dataArray.length / barCount);
+                
+                for (let i = 0; i < barCount; i++) {
+                    let sum = 0;
+                    for (let j = 0; j < dataPerBar; j++) {
+                        sum += this.dataArray[i * dataPerBar + j];
+                    }
+                    const average = sum / dataPerBar;
+                    const height = Math.max(5, (average / 255) * 50);
+                    bars[i].style.height = height + 'px';
+                }
+            }
+
+            bindEvents() {
+                this.micButton.addEventListener('click', () => {
+                    if (this.isRecording) {
+                        this.stopRecording();
+                    } else {
+                        this.startRecording();
+                    }
+                });
+
+                this.stopBtn.addEventListener('click', () => {
+                    this.stopRecording();
+                });
+
+                this.completeBtn.addEventListener('click', () => {
+                    this.completeRecording();
+                });
+            }
+
+            async startRecording() {
+                if (!this.recognition) {
+                    this.showStatus('음성 인식이 지원되지 않습니다.', 'error');
+                    return;
+                }
+
+                this.isRecording = true;
+                this.transcribedText = '';
+                this.micButton.classList.add('recording');
+                this.micButton.textContent = '🔴';
+                this.recordingUI.classList.add('active');
+                
+                this.startTime = Date.now();
+                this.startTimer();
+                
+                await this.initAudioVisualization();
+                this.recognition.start();
+            }
+
+            stopRecording() {
+                this.isRecording = false;
+                this.micButton.classList.remove('recording');
+                this.micButton.textContent = '🎤';
+                this.recordingUI.classList.remove('active');
+                
+                this.stopTimer();
+                
+                if (this.recognition) {
+                    this.recognition.stop();
+                }
+                
+                if (this.audioContext) {
+                    this.audioContext.close();
+                    this.audioContext = null;
+                }
+                
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                }
+
+                this.showStatus('녹음이 중지되었습니다.', 'info');
+            }
+
+            completeRecording() {
+                this.stopRecording();
+                
+                if (this.transcribedText) {
+                    const currentText = this.textInput.value;
+                    const newText = currentText ? currentText + ' ' + this.transcribedText : this.transcribedText;
+                    this.textInput.value = newText;
+                    this.showStatus('음성이 텍스트로 변환되어 입력되었습니다.', 'success');
+                } else {
+                    this.showStatus('변환된 텍스트가 없습니다.', 'error');
+                }
+            }
+
+            startTimer() {
+                this.timerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    this.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }, 1000);
+            }
+
+            stopTimer() {
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+                this.timer.textContent = '0:00';
+            }
+
+            showStatus(message, type) {
+                this.status.textContent = message;
+                this.status.className = `status ${type}`;
+                this.status.style.display = 'block';
+                
+                setTimeout(() => {
+                    this.status.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // 앱 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            new VoiceTextApp();
+        });
+    </script>
+</body>
+</html>
